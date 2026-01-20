@@ -18,7 +18,7 @@ if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_NAME = "meta-llama/llama-3.2-3b-instruct:free"
+MODEL_NAME = "qwen/qwen-2.5-vl-7b-instruct:free"
 
 
 class InterviewFeedback(BaseModel):
