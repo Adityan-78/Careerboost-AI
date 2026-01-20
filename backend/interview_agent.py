@@ -18,7 +18,7 @@ if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_NAME = "mistralai/devstral-2-2512:free"
+MODEL_NAME = "meta-llama/llama-3.2-3b-instruct:free"
 
 
 class InterviewFeedback(BaseModel):
@@ -126,26 +126,39 @@ async def evaluate_answer(
         Detailed feedback with score and improvements
     """
     try:
-        system_prompt = """You are an interview coach. Evaluate answers and provide concise, constructive feedback.
-Score 1-10 based on relevance, clarity, and skill demonstration."""
+        system_prompt = """You are an expert interview coach providing constructive feedback.
+Evaluate answers based on relevance, clarity, structure, and how well they demonstrate skills.
+Be encouraging but honest. Provide actionable improvement suggestions."""
         
-        user_prompt = f"""Evaluate this answer. Return ONLY valid JSON.
+        user_prompt = f"""Evaluate this interview answer and provide detailed feedback.
 
-Q: {question}
+QUESTION:
+{question}
 
-A: {user_answer}
+CANDIDATE'S ANSWER:
+{user_answer}
 
-JOB: {job_description[:800]}
+JOB CONTEXT:
+{job_description[:1000]}
 
-RESUME: {resume_text[:800]}
+CANDIDATE BACKGROUND:
+{resume_text[:1000]}
 
-Return this JSON (no markdown):
+Provide feedback in this EXACT JSON format (no markdown):
 {{
-  "score": <1-10>,
-  "strengths": ["strength1", "strength2"],
-  "improvements": ["improvement1", "improvement2"],
-  "suggested_answer": "Better answer..."
-}}"""
+  "score": <1-10 integer>,
+  "strengths": ["strength 1", "strength 2"],
+  "improvements": ["improvement 1", "improvement 2"],
+  "suggested_answer": "A better way to answer this question would be..."
+}}
+
+Scoring guide:
+1-3: Poor answer, lacks relevance or clarity
+4-6: Acceptable but needs improvement
+7-8: Good answer with minor improvements needed
+9-10: Excellent, well-structured answer
+
+Be specific and constructive in your feedback."""
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -158,8 +171,8 @@ Return this JSON (no markdown):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.6,
-            "max_tokens": 600  # Optimized for fast Devstral feedback
+            "temperature": 0.7,
+            "max_tokens": 1000
         }
         
         async with httpx.AsyncClient(timeout=60.0) as client:

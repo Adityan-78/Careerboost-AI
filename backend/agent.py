@@ -17,7 +17,7 @@ if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_NAME = "mistralai/devstral-2-2512:free"
+MODEL_NAME = "meta-llama/llama-3.2-3b-instruct:free"
 
 
 async def analyze_resume(resume_text: str, job_description: str, rewrite_all_bullets: bool = False) -> dict:
