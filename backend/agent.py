@@ -17,7 +17,7 @@ if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_NAME = "meta-llama/llama-3.3-70b-instruct:free"
+MODEL_NAME = "mistralai/devstral-2-2512:free"
 
 
 async def analyze_resume(resume_text: str, job_description: str, rewrite_all_bullets: bool = False) -> dict:
@@ -32,17 +32,15 @@ async def analyze_resume(resume_text: str, job_description: str, rewrite_all_bul
             else "Rewrite ONLY the resume bullets that are relevant to this job description in natural language."
         )
         
-        system_prompt = """You are an expert ATS resume optimization assistant. 
-Return ONLY valid JSON with no markdown formatting, no code blocks, no extra text.
-Be concise and direct. Extract skills efficiently from the ENTIRE resume and job description provided.
-For matched_skills, extract ALL skills that appear in both documents (not just top 5).
-For missing_skills, list the top 5 most important skills from the job description that are NOT in the resume.
-For interview_prep, ALWAYS return exactly 6 interview questions (mix of Technical, Behavioral, and Experience-Based)."""
+        system_prompt = """You are an expert resume optimizer. Return ONLY valid JSON.
+Extract skills from resume and job description. Be concise.
+For matched_skills: all skills in both docs.
+For missing_skills: top 5 important skills from JD not in resume.
+For interview_prep: exactly 6 questions (Technical, Behavioral, Experience-Based)."""
         
-        # Optimize text length for faster processing while preserving skill information
-        # Increased limits to capture more skills without excessive token bloat
-        resume_excerpt = resume_text[:5000]  # Increased from 2000 to capture more skills
-        jd_excerpt = job_description[:3500]   # Increased from 1500 to capture more skills
+        # Optimized for Devstral - smaller model, needs shorter inputs
+        resume_excerpt = resume_text[:3000]  # Optimized for Devstral
+        jd_excerpt = job_description[:2000]   # Optimized for Devstral
         
         user_prompt = f"""Analyze this resume against this job description. Be BRIEF and CONCISE.
 
@@ -60,12 +58,12 @@ Return ONLY this JSON (no markdown, no code blocks):
   "optimized_resume_bullets": ["bullet1", "bullet2", "bullet3"],
   "cover_letter": "2 paragraph cover letter",
   "interview_prep": [
-    {{"question": "Technical question 1?", "category": "Technical", "suggested_answer_approach": "Brief approach"}},
-    {{"question": "Technical question 2?", "category": "Technical", "suggested_answer_approach": "Brief approach"}},
-    {{"question": "Behavioral question 1?", "category": "Behavioral", "suggested_answer_approach": "Brief approach"}},
-    {{"question": "Experience-based question 1?", "category": "Experience-Based", "suggested_answer_approach": "Brief approach"}},
-    {{"question": "Problem-solving question?", "category": "Problem-Solving", "suggested_answer_approach": "Brief approach"}},
-    {{"question": "Follow-up question?", "category": "Technical", "suggested_answer_approach": "Brief approach"}}
+    {{"question": "Q1?", "category": "Technical"}},
+    {{"question": "Q2?", "category": "Technical"}},
+    {{"question": "Q3?", "category": "Behavioral"}},
+    {{"question": "Q4?", "category": "Behavioral"}},
+    {{"question": "Q5?", "category": "Experience-Based"}},
+    {{"question": "Q6?", "category": "Problem-Solving"}}
   ]
 }}"""
         
@@ -82,7 +80,7 @@ Return ONLY this JSON (no markdown, no code blocks):
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.5,  # Balanced for consistency
-            "max_tokens": 2500   # Increased from 2000 to accommodate more skills in output
+            "max_tokens": 1500   # Reduced for faster Devstral processing
         }
         
         logger.info(f"Calling OpenRouter API with optimized parameters...")

@@ -18,7 +18,7 @@ if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_NAME = "meta-llama/llama-3.3-70b-instruct:free"
+MODEL_NAME = "mistralai/devstral-2-2512:free"
 
 
 class InterviewFeedback(BaseModel):
@@ -61,31 +61,20 @@ async def generate_interview_question(
             for msg in chat_history if 'question' in msg and 'answer' in msg
         ])
         
-        system_prompt = """You are an expert technical interviewer conducting a job interview. 
-Generate realistic, relevant interview questions based on the job description and candidate's background.
-Ask one question at a time. Make questions specific, thoughtful, and appropriate for the role level."""
+        system_prompt = """You are an expert technical interviewer. Generate one relevant, concise interview question.
+Ask specific questions based on job requirements and candidate background."""
         
-        user_prompt = f"""Based on this context, generate the NEXT interview question.
+        user_prompt = f"""Generate ONE interview question for this role.
 
-JOB DESCRIPTION:
-{job_description[:2000]}
+JOB: {job_description[:1500]}
 
-CANDIDATE RESUME:
-{resume_text[:2000]}
+RESUME: {resume_text[:1500]}
 
-PREVIOUS QUESTIONS ASKED:
-{history_context if history_context else "None - this is the first question"}
+PREVIOUS: {history_context if history_context else "First question"}
 
-CUSTOM INSTRUCTIONS FROM USER:
-{custom_instructions if custom_instructions else "No specific instructions"}
+CUSTOM: {custom_instructions if custom_instructions else "None"}
 
-Generate ONE interview question that:
-1. Is relevant to the job requirements
-2. Hasn't been asked before
-3. Matches the custom instructions if provided
-4. Is appropriate for the candidate's experience level
-
-Return ONLY the question text, nothing else."""
+Return ONLY the question text."""
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -98,8 +87,8 @@ Return ONLY the question text, nothing else."""
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.8,
-            "max_tokens": 300
+            "temperature": 0.7,
+            "max_tokens": 200  # Optimized for fast Devstral question generation
         }
         
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -137,39 +126,26 @@ async def evaluate_answer(
         Detailed feedback with score and improvements
     """
     try:
-        system_prompt = """You are an expert interview coach providing constructive feedback.
-Evaluate answers based on relevance, clarity, structure, and how well they demonstrate skills.
-Be encouraging but honest. Provide actionable improvement suggestions."""
+        system_prompt = """You are an interview coach. Evaluate answers and provide concise, constructive feedback.
+Score 1-10 based on relevance, clarity, and skill demonstration."""
         
-        user_prompt = f"""Evaluate this interview answer and provide detailed feedback.
+        user_prompt = f"""Evaluate this answer. Return ONLY valid JSON.
 
-QUESTION:
-{question}
+Q: {question}
 
-CANDIDATE'S ANSWER:
-{user_answer}
+A: {user_answer}
 
-JOB CONTEXT:
-{job_description[:1000]}
+JOB: {job_description[:800]}
 
-CANDIDATE BACKGROUND:
-{resume_text[:1000]}
+RESUME: {resume_text[:800]}
 
-Provide feedback in this EXACT JSON format (no markdown):
+Return this JSON (no markdown):
 {{
-  "score": <1-10 integer>,
-  "strengths": ["strength 1", "strength 2"],
-  "improvements": ["improvement 1", "improvement 2"],
-  "suggested_answer": "A better way to answer this question would be..."
-}}
-
-Scoring guide:
-1-3: Poor answer, lacks relevance or clarity
-4-6: Acceptable but needs improvement
-7-8: Good answer with minor improvements needed
-9-10: Excellent, well-structured answer
-
-Be specific and constructive in your feedback."""
+  "score": <1-10>,
+  "strengths": ["strength1", "strength2"],
+  "improvements": ["improvement1", "improvement2"],
+  "suggested_answer": "Better answer..."
+}}"""
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -182,8 +158,8 @@ Be specific and constructive in your feedback."""
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.7,
-            "max_tokens": 1000
+            "temperature": 0.6,
+            "max_tokens": 600  # Optimized for fast Devstral feedback
         }
         
         async with httpx.AsyncClient(timeout=60.0) as client:
