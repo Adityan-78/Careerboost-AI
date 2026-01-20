@@ -23,26 +23,23 @@ MODEL_NAME = "meta-llama/llama-3.2-3b-instruct:free"
 async def analyze_resume(resume_text: str, job_description: str, rewrite_all_bullets: bool = False) -> dict:
     """
     Analyze resume against job description using OpenRouter API.
-    Optimized for faster response times.
+    Optimized for fast response with Llama 3.2 3B.
     """
     try:
         bullet_instruction = (
             "Rewrite ALL resume bullets in natural, human-like language."
             if rewrite_all_bullets
-            else "Rewrite ONLY the resume bullets that are relevant to this job description in natural language."
+            else "Rewrite ONLY the resume bullets relevant to this job in natural language."
         )
         
-        system_prompt = """You are an expert resume optimizer. Return ONLY valid JSON.
-Extract skills from resume and job description. Be concise.
-For matched_skills: all skills in both docs.
-For missing_skills: top 5 important skills from JD not in resume.
-For interview_prep: exactly 6 questions (Technical, Behavioral, Experience-Based)."""
+        system_prompt = """You are an expert resume optimizer. Return ONLY valid JSON, no markdown.
+Be concise and accurate. Use natural human language, not robotic."""
         
-        # Optimized for Devstral - smaller model, needs shorter inputs
-        resume_excerpt = resume_text[:3000]  # Optimized for Devstral
-        jd_excerpt = job_description[:2000]   # Optimized for Devstral
+        # Trim inputs for faster processing
+        resume_excerpt = resume_text[:4000]
+        jd_excerpt = job_description[:2500]
         
-        user_prompt = f"""Analyze this resume against this job description. Be BRIEF and CONCISE.
+        user_prompt = f"""Analyze resume vs job description. Return ONLY JSON (no markdown, no code blocks):
 
 RESUME:
 {resume_excerpt}
@@ -50,22 +47,32 @@ RESUME:
 JOB DESCRIPTION:
 {jd_excerpt}
 
-Return ONLY this JSON (no markdown, no code blocks):
+{bullet_instruction}
+
+Return this EXACT JSON structure:
 {{
-  "skill_match_percentage": <0-100>,
-  "matched_skills": ["skill1", "skill2", "skill3"],
-  "missing_skills": ["skill4", "skill5"],
-  "optimized_resume_bullets": ["bullet1", "bullet2", "bullet3"],
-  "cover_letter": "2 paragraph cover letter",
+  "skill_match_percentage": <number 0-100>,
+  "matched_skills": ["skill1", "skill2", ...],
+  "missing_skills": ["skill3", "skill4", ...],
+  "optimized_resume_bullets": ["bullet1 in natural language", "bullet2", ...],
+  "cover_letter": "2-3 paragraph professional cover letter",
   "interview_prep": [
-    {{"question": "Q1?", "category": "Technical"}},
-    {{"question": "Q2?", "category": "Technical"}},
-    {{"question": "Q3?", "category": "Behavioral"}},
-    {{"question": "Q4?", "category": "Behavioral"}},
-    {{"question": "Q5?", "category": "Experience-Based"}},
-    {{"question": "Q6?", "category": "Problem-Solving"}}
+    {{
+      "question": "Interview question text?",
+      "category": "Technical",
+      "suggested_answer_approach": "Use STAR method: describe situation, task, action, result..."
+    }},
+    {{
+      "question": "Another question?",
+      "category": "Behavioral",
+      "suggested_answer_approach": "Focus on specific examples and measurable outcomes..."
+    }}
   ]
-}}"""
+}}
+
+Generate 6 interview questions (mix of Technical, Behavioral, Experience-Based).
+Each question MUST have: question, category, and suggested_answer_approach.
+Make bullets sound human, not robotic."""
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -79,14 +86,13 @@ Return ONLY this JSON (no markdown, no code blocks):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.5,  # Balanced for consistency
-            "max_tokens": 1500   # Reduced for faster Devstral processing
+            "temperature": 0.7,
+            "max_tokens": 2000
         }
         
-        logger.info(f"Calling OpenRouter API with optimized parameters...")
+        logger.info(f"Calling OpenRouter API with {MODEL_NAME}...")
         
-        # Use shorter timeout - 60 seconds instead of 120
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             response = await client.post(OPENROUTER_API_URL, headers=headers, json=payload)
             
             if response.status_code != 200:
@@ -97,22 +103,24 @@ Return ONLY this JSON (no markdown, no code blocks):
             
             logger.info(f"API response received, parsing JSON...")
             
-            # Clean up markdown if present
+            # Clean markdown formatting
             content = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             
-            # Try to extract JSON if it's wrapped in extra text
-            if '{' not in content[:10]:
+            # Extract JSON if wrapped in text
+            if '{' in content and '}' in content:
                 json_start = content.find('{')
-                if json_start != -1:
-                    content = content[json_start:]
-            
-            if '}' not in content[-10:]:
-                json_end = content.rfind('}')
-                if json_end != -1:
-                    content = content[:json_end+1]
+                json_end = content.rfind('}') + 1
+                content = content[json_start:json_end]
             
             # Parse JSON
             result_data = json.loads(content)
+            
+            # Ensure interview_prep has suggested_answer_approach
+            if 'interview_prep' in result_data:
+                for q in result_data['interview_prep']:
+                    if 'suggested_answer_approach' not in q:
+                        # Add default if missing
+                        q['suggested_answer_approach'] = "Use specific examples from your experience. Be clear, concise, and demonstrate your skills with measurable results."
             
             # Validate with Pydantic
             validated = ResumeAnalysisResult(**result_data)
@@ -136,6 +144,7 @@ Return ONLY this JSON (no markdown, no code blocks):
     
     except json.JSONDecodeError as je:
         logger.error(f"JSON parsing error: {str(je)}")
+        logger.error(f"Content was: {content[:500]}")
         raise Exception(f"Failed to parse API response as JSON: {str(je)}")
     except Exception as e:
         logger.error(f"Error: {str(e)}")

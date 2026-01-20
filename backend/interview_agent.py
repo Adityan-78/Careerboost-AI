@@ -43,38 +43,24 @@ async def generate_interview_question(
     custom_instructions: str = ""
 ) -> str:
     """
-    Generate next interview question based on context.
-    
-    Args:
-        resume_text: Candidate's resume
-        job_description: Job description
-        chat_history: Previous Q&A history
-        custom_instructions: User's custom instructions
-    
-    Returns:
-        Next interview question
+    Generate next interview question - optimized for fast Llama 3.2 3B.
     """
     try:
-        # Build context from history
-        history_context = "\n".join([
-            f"Q: {msg['question']}\nA: {msg['answer']}" 
-            for msg in chat_history if 'question' in msg and 'answer' in msg
-        ])
+        # Build compact history
+        asked_questions = [msg.get('question', '') for msg in chat_history if 'question' in msg]
+        history_summary = f"Already asked: {', '.join(asked_questions[:3])}" if asked_questions else "First question"
         
-        system_prompt = """You are an expert technical interviewer. Generate one relevant, concise interview question.
-Ask specific questions based on job requirements and candidate background."""
+        system_prompt = """You are an expert interviewer. Ask ONE specific, relevant interview question.
+Be concise. Make it realistic for the role."""
         
-        user_prompt = f"""Generate ONE interview question for this role.
+        user_prompt = f"""Generate ONE interview question.
 
-JOB: {job_description[:1500]}
+JOB: {job_description[:1200]}
+RESUME: {resume_text[:1200]}
+PREVIOUS: {history_summary}
+INSTRUCTIONS: {custom_instructions if custom_instructions else "General interview"}
 
-RESUME: {resume_text[:1500]}
-
-PREVIOUS: {history_context if history_context else "First question"}
-
-CUSTOM: {custom_instructions if custom_instructions else "None"}
-
-Return ONLY the question text."""
+Return ONLY the question (no extra text)."""
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -87,8 +73,8 @@ Return ONLY the question text."""
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.7,
-            "max_tokens": 200  # Optimized for fast Devstral question generation
+            "temperature": 0.8,
+            "max_tokens": 150
         }
         
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -99,6 +85,9 @@ Return ONLY the question text."""
             
             data = response.json()
             question = data["choices"][0]["message"]["content"].strip()
+            
+            # Remove any quotes or extra formatting
+            question = question.strip('"').strip("'").strip()
             
             return question
     
@@ -114,51 +103,30 @@ async def evaluate_answer(
     resume_text: str
 ) -> InterviewFeedback:
     """
-    Evaluate user's interview answer and provide feedback.
-    
-    Args:
-        question: The interview question asked
-        user_answer: User's answer
-        job_description: Job description for context
-        resume_text: Resume for context
-    
-    Returns:
-        Detailed feedback with score and improvements
+    Evaluate answer and provide feedback - optimized for Llama 3.2 3B.
     """
     try:
-        system_prompt = """You are an expert interview coach providing constructive feedback.
-Evaluate answers based on relevance, clarity, structure, and how well they demonstrate skills.
-Be encouraging but honest. Provide actionable improvement suggestions."""
+        system_prompt = """You are an interview coach. Provide constructive feedback.
+Be specific, encouraging, and helpful. Return ONLY valid JSON."""
         
-        user_prompt = f"""Evaluate this interview answer and provide detailed feedback.
+        user_prompt = f"""Evaluate this interview answer.
 
-QUESTION:
-{question}
+QUESTION: {question}
+ANSWER: {user_answer}
 
-CANDIDATE'S ANSWER:
-{user_answer}
+JOB: {job_description[:800]}
+RESUME: {resume_text[:800]}
 
-JOB CONTEXT:
-{job_description[:1000]}
-
-CANDIDATE BACKGROUND:
-{resume_text[:1000]}
-
-Provide feedback in this EXACT JSON format (no markdown):
+Return ONLY this JSON (no markdown):
 {{
-  "score": <1-10 integer>,
+  "score": <1-10>,
   "strengths": ["strength 1", "strength 2"],
   "improvements": ["improvement 1", "improvement 2"],
-  "suggested_answer": "A better way to answer this question would be..."
+  "suggested_answer": "A better answer would be..."
 }}
 
-Scoring guide:
-1-3: Poor answer, lacks relevance or clarity
-4-6: Acceptable but needs improvement
-7-8: Good answer with minor improvements needed
-9-10: Excellent, well-structured answer
-
-Be specific and constructive in your feedback."""
+Score guide: 1-3=Poor, 4-6=Okay, 7-8=Good, 9-10=Excellent
+Be specific and constructive."""
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -172,7 +140,7 @@ Be specific and constructive in your feedback."""
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.7,
-            "max_tokens": 1000
+            "max_tokens": 800
         }
         
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -184,8 +152,14 @@ Be specific and constructive in your feedback."""
             data = response.json()
             content = data["choices"][0]["message"]["content"].strip()
             
-            # Clean markdown if present
+            # Clean markdown
             content = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            
+            # Extract JSON if needed
+            if '{' in content and '}' in content:
+                json_start = content.find('{')
+                json_end = content.rfind('}') + 1
+                content = content[json_start:json_end]
             
             # Parse JSON
             feedback_data = json.loads(content)
@@ -208,17 +182,7 @@ async def interview_chat(
     custom_instructions: str = ""
 ) -> InterviewResponse:
     """
-    Main interview chat function - handles both questions and feedback.
-    
-    Args:
-        resume_text: Candidate's resume
-        job_description: Job description
-        chat_history: List of previous messages
-        user_message: User's answer (if answering) or None (if requesting question)
-        custom_instructions: User's custom instructions
-    
-    Returns:
-        InterviewResponse with AI message, optional feedback, and next question
+    Main interview chat function - handles questions and feedback.
     """
     try:
         # If user is answering a question
@@ -242,7 +206,7 @@ async def interview_chat(
                     custom_instructions=custom_instructions
                 )
                 
-                feedback_message = f"""Great! Let me provide feedback on your answer.
+                feedback_message = f"""Great! Here's your feedback:
 
 **Score: {feedback.score}/10**
 
