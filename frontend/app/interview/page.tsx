@@ -1,7 +1,16 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Upload, FileText, Briefcase, Loader2, Send, Mic, RotateCcw, ArrowRight, MessageCircle } from 'lucide-react'
+import { Upload, FileText, Briefcase, Loader2, Send, Mic, RotateCcw, ArrowRight, MessageCircle, Sparkles, TrendingUp, Award, Zap, Download, Trash2 } from 'lucide-react'
+
+const SUGGESTED_PROMPTS = [
+  "Focus on technical questions about my skills",
+  "Ask me behavioral questions using STAR method",
+  "Simulate a senior-level interview",
+  "Ask questions about leadership and team management",
+  "Focus on problem-solving and system design",
+  "Ask about my project experience and achievements"
+]
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -348,6 +357,21 @@ export default function InterviewPracticePage() {
                 value={customInstructions}
                 onChange={(e) => setCustomInstructions(e.target.value)}
               />
+              
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-gray-600 mb-3">✨ Suggested prompts:</p>
+                <div className="flex flex-wrap gap-2">
+                  {SUGGESTED_PROMPTS.map((prompt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCustomInstructions(prompt)}
+                      className="px-4 py-2 bg-white hover:bg-gradient-to-r hover:from-pink-500 hover:to-purple-500 text-gray-700 hover:text-white text-xs font-medium rounded-full transition-all duration-300 border border-indigo-200 hover:border-transparent shadow-sm hover:shadow-lg transform hover:scale-105"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center justify-end pt-6 border-t border-gray-200">
