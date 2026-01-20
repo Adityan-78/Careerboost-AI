@@ -35,7 +35,8 @@ async def analyze_resume(resume_text: str, job_description: str, rewrite_all_bul
         system_prompt = """You are an expert ATS resume optimization assistant. 
 Return ONLY valid JSON with no markdown formatting, no code blocks, no extra text.
 Be concise and direct. Extract skills efficiently.
-For missing_skills, list ONLY the top 5 most important skills mentioned in the job description that are NOT in the resume."""
+For missing_skills, list ONLY the top 5 most important skills mentioned in the job description that are NOT in the resume.
+For interview_prep, ALWAYS return exactly 6 interview questions (mix of Technical, Behavioral, and Experience-Based)."""
         
         # Optimize text length for faster processing
         # Reduce token count by being more selective
@@ -58,7 +59,12 @@ Return ONLY this JSON (no markdown, no code blocks):
   "optimized_resume_bullets": ["bullet1", "bullet2", "bullet3"],
   "cover_letter": "2 paragraph cover letter",
   "interview_prep": [
-    {{"question": "Q1?", "category": "Technical", "suggested_answer_approach": "Brief approach"}}
+    {{"question": "Technical question 1?", "category": "Technical", "suggested_answer_approach": "Brief approach"}},
+    {{"question": "Technical question 2?", "category": "Technical", "suggested_answer_approach": "Brief approach"}},
+    {{"question": "Behavioral question 1?", "category": "Behavioral", "suggested_answer_approach": "Brief approach"}},
+    {{"question": "Experience-based question 1?", "category": "Experience-Based", "suggested_answer_approach": "Brief approach"}},
+    {{"question": "Problem-solving question?", "category": "Problem-Solving", "suggested_answer_approach": "Brief approach"}},
+    {{"question": "Follow-up question?", "category": "Technical", "suggested_answer_approach": "Brief approach"}}
   ]
 }}"""
         
