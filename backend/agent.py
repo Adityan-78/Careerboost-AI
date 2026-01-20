@@ -34,14 +34,15 @@ async def analyze_resume(resume_text: str, job_description: str, rewrite_all_bul
         
         system_prompt = """You are an expert ATS resume optimization assistant. 
 Return ONLY valid JSON with no markdown formatting, no code blocks, no extra text.
-Be concise and direct. Extract skills efficiently.
-For missing_skills, list ONLY the top 5 most important skills mentioned in the job description that are NOT in the resume.
+Be concise and direct. Extract skills efficiently from the ENTIRE resume and job description provided.
+For matched_skills, extract ALL skills that appear in both documents (not just top 5).
+For missing_skills, list the top 5 most important skills from the job description that are NOT in the resume.
 For interview_prep, ALWAYS return exactly 6 interview questions (mix of Technical, Behavioral, and Experience-Based)."""
         
-        # Optimize text length for faster processing
-        # Reduce token count by being more selective
-        resume_excerpt = resume_text[:2000]  # Reduced from 3000
-        jd_excerpt = job_description[:1500]   # Reduced from 2500
+        # Optimize text length for faster processing while preserving skill information
+        # Increased limits to capture more skills without excessive token bloat
+        resume_excerpt = resume_text[:5000]  # Increased from 2000 to capture more skills
+        jd_excerpt = job_description[:3500]   # Increased from 1500 to capture more skills
         
         user_prompt = f"""Analyze this resume against this job description. Be BRIEF and CONCISE.
 
@@ -80,8 +81,8 @@ Return ONLY this JSON (no markdown, no code blocks):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.5,  # Reduced from 0.7 for faster, more consistent responses
-            "max_tokens": 2000   # Reduced from 4000 for faster generation
+            "temperature": 0.5,  # Balanced for consistency
+            "max_tokens": 2500   # Increased from 2000 to accommodate more skills in output
         }
         
         logger.info(f"Calling OpenRouter API with optimized parameters...")
