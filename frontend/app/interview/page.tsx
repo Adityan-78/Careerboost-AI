@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Upload, FileText, Briefcase, Send, Trash2, Download, Sparkles, MessageCircle, TrendingUp, Award, Zap } from 'lucide-react'
+import { Upload, FileText, Briefcase, Send, Trash2, Download, MessageCircle, Zap } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -17,18 +17,19 @@ interface ChatMessage {
 }
 
 const SUGGESTED_PROMPTS = [
-  "Focus on technical questions about my skills",
-  "Ask me behavioral questions using STAR method",
-  "Simulate a senior-level interview",
-  "Ask questions about leadership and team management",
-  "Focus on problem-solving and system design",
-  "Ask about my project experience and achievements"
+  "Focus on technical questions",
+  "Ask behavioral questions",
+  "Senior-level interview",
+  "Leadership questions",
+  "Problem-solving focus",
+  "Project experience"
 ]
 
 export default function InterviewPractice() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [resumeText, setResumeText] = useState('')
-  const [jobDescription, setJobDescription] = useState('')
+  const [jobDescFile, setJobDescFile] = useState<File | null>(null)
+  const [jobDescText, setJobDescText] = useState('')
   const [customInstructions, setCustomInstructions] = useState('')
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random()}`)
   
@@ -46,16 +47,23 @@ export default function InterviewPractice() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatHistory])
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setResumeFile(e.target.files[0])
       setResumeText('')
     }
   }
 
+  const handleJobDescFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setJobDescFile(e.target.files[0])
+      setJobDescText('')
+    }
+  }
+
   const handleStartInterview = async () => {
-    if ((!resumeFile && !resumeText) || !jobDescription) {
-      setError('Please provide both a resume and job description')
+    if ((!resumeFile && !resumeText) || (!jobDescFile && !jobDescText)) {
+      setError('Please provide both resume and job description')
       return
     }
 
@@ -71,7 +79,12 @@ export default function InterviewPractice() {
         formData.append('resume_text', resumeText)
       }
       
-      formData.append('job_description', jobDescription)
+      if (jobDescFile) {
+        formData.append('job_description_file', jobDescFile)
+      } else {
+        formData.append('job_description_text', jobDescText)
+      }
+      
       formData.append('custom_instructions', customInstructions)
       formData.append('session_id', sessionId)
 
@@ -131,28 +144,22 @@ export default function InterviewPractice() {
 
       const data = await response.json()
       
-      // Parse feedback if it exists
-      const newMessage: ChatMessage = {
+      // Add feedback message
+      setChatHistory(prev => [...prev, {
         role: 'assistant',
         content: data.message,
-      }
-
-      // Only add feedback if it's properly structured with all required fields
-      if (data.feedback && typeof data.feedback === 'object' && 
-          'score' in data.feedback && 'strengths' in data.feedback && 
-          'improvements' in data.feedback && 'suggested_answer' in data.feedback) {
-        newMessage.feedback = {
-          score: Number(data.feedback.score) || 0,
-          strengths: Array.isArray(data.feedback.strengths) ? data.feedback.strengths : [],
-          improvements: Array.isArray(data.feedback.improvements) ? data.feedback.improvements : [],
-          suggested_answer: String(data.feedback.suggested_answer) || ''
-        }
-      }
-
-      setChatHistory(prev => [...prev, newMessage])
+        feedback: data.feedback
+      }])
       
+      // Automatically add next question
       if (data.next_question) {
         setCurrentQuestion(data.next_question)
+        setTimeout(() => {
+          setChatHistory(prev => [...prev, {
+            role: 'assistant',
+            content: data.next_question
+          }])
+        }, 800)
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred')
@@ -168,7 +175,8 @@ export default function InterviewPractice() {
     setCurrentAnswer('')
     setResumeFile(null)
     setResumeText('')
-    setJobDescription('')
+    setJobDescFile(null)
+    setJobDescText('')
     setCustomInstructions('')
   }
 
@@ -190,66 +198,46 @@ export default function InterviewPractice() {
 
   if (!isSessionStarted) {
     return (
-      <div className="min-h-screen relative overflow-hidden py-12 px-4 sm:px-6 lg:px-8">
-        {/* Animated Background */}
-        <div className="fixed inset-0 -z-10">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50" />
-          <div className="absolute top-0 left-0 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
-          <div className="absolute top-0 right-0 w-96 h-96 bg-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
-          <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
-        </div>
-
-        <div className="relative max-w-5xl mx-auto">
-          <div className="text-center mb-16 animate-fade-in">
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <div className="p-4 bg-gradient-to-br from-purple-500 to-pink-600 rounded-3xl shadow-2xl animate-bounce">
-                <MessageCircle className="w-12 h-12 text-white" />
-              </div>
-              <h1 className="text-6xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
-                Interview Practice
-              </h1>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-slate-50 py-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-full text-sm font-medium mb-4">
+              <Zap className="w-4 h-4" />
+              AI-Powered Practice
             </div>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed mb-8">
-              Master your interviews with AI-powered practice sessions and instant feedback
+            <h1 className="text-5xl font-bold text-gray-900 mb-4 tracking-tight">
+              Interview Practice
+            </h1>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Practice with AI and get instant feedback on your answers
             </p>
-            <div className="flex items-center justify-center gap-8">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-green-500" />
-                <span className="text-sm font-medium text-gray-600">Real-time Feedback</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Award className="w-5 h-5 text-yellow-500" />
-                <span className="text-sm font-medium text-gray-600">Scored Answers</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-purple-500" />
-                <span className="text-sm font-medium text-gray-600">AI-Powered</span>
-              </div>
-            </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 animate-slide-up">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
             <div className="grid md:grid-cols-2 gap-8 mb-8">
               {/* Resume Input */}
               <div className="space-y-4">
-                <label className="flex items-center gap-2 text-lg font-bold text-gray-800 mb-4">
-                  <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
-                    <FileText className="w-5 h-5 text-white" />
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-blue-600" />
                   </div>
-                  Your Resume
+                  Resume
                 </label>
                 
                 <div className="relative group">
-                  <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-300 rounded-2xl cursor-pointer bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 group-hover:border-blue-500 group-hover:shadow-lg">
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200">
                     <div className="flex flex-col items-center justify-center">
-                      <div className="p-3 bg-white rounded-full shadow-md mb-2 group-hover:scale-110 transition-transform">
-                        <Upload className="w-7 h-7 text-blue-600" />
+                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors">
+                        <Upload className="w-6 h-6 text-blue-600" />
                       </div>
-                      <p className="text-sm font-semibold text-gray-700">
+                      <p className="text-sm font-medium text-gray-700">
                         {resumeFile ? (
                           <span className="text-blue-600">{resumeFile.name}</span>
                         ) : (
-                          'Upload PDF or DOCX'
+                          <>
+                            <span className="text-blue-600">Upload file</span>
+                            <span className="text-gray-500"> or drag and drop</span>
+                          </>
                         )}
                       </p>
                     </div>
@@ -257,22 +245,19 @@ export default function InterviewPractice() {
                       type="file" 
                       className="hidden" 
                       accept=".pdf,.docx,.doc"
-                      onChange={handleFileChange}
+                      onChange={handleResumeFileChange}
                     />
                   </label>
                 </div>
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
-                  </div>
+                <div className="relative flex items-center">
+                  <div className="flex-grow border-t border-gray-300"></div>
+                  <span className="flex-shrink mx-4 text-xs text-gray-500 font-medium">OR</span>
+                  <div className="flex-grow border-t border-gray-300"></div>
                 </div>
 
                 <textarea
-                  className="w-full h-32 p-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 resize-none text-sm bg-gradient-to-br from-gray-50 to-white disabled:opacity-50"
+                  className="w-full h-32 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm disabled:bg-gray-50 transition-all"
                   placeholder="Paste resume text..."
                   value={resumeText}
                   onChange={(e) => {
@@ -285,44 +270,78 @@ export default function InterviewPractice() {
 
               {/* Job Description */}
               <div className="space-y-4">
-                <label className="flex items-center gap-2 text-lg font-bold text-gray-800 mb-4">
-                  <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
-                    <Briefcase className="w-5 h-5 text-white" />
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <Briefcase className="w-4 h-4 text-purple-600" />
                   </div>
                   Job Description
                 </label>
+
+                <div className="relative group">
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all duration-200">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mb-2 group-hover:bg-purple-200 transition-colors">
+                        <Upload className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-700">
+                        {jobDescFile ? (
+                          <span className="text-purple-600">{jobDescFile.name}</span>
+                        ) : (
+                          <>
+                            <span className="text-purple-600">Upload file</span>
+                            <span className="text-gray-500"> or drag and drop</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".pdf,.docx,.doc"
+                      onChange={handleJobDescFileChange}
+                    />
+                  </label>
+                </div>
+
+                <div className="relative flex items-center">
+                  <div className="flex-grow border-t border-gray-300"></div>
+                  <span className="flex-shrink mx-4 text-xs text-gray-500 font-medium">OR</span>
+                  <div className="flex-grow border-t border-gray-300"></div>
+                </div>
+
                 <textarea
-                  className="w-full h-72 p-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 resize-none text-sm bg-gradient-to-br from-purple-50 to-white"
+                  className="w-full h-32 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm disabled:bg-gray-50 transition-all"
                   placeholder="Paste job description..."
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
+                  value={jobDescText}
+                  onChange={(e) => {
+                    setJobDescText(e.target.value)
+                    setJobDescFile(null)
+                  }}
+                  disabled={!!jobDescFile}
                 />
               </div>
             </div>
 
             {/* Custom Instructions */}
-            <div className="mb-8 p-6 bg-gradient-to-br from-pink-50 to-purple-50 rounded-2xl border-2 border-pink-100">
-              <label className="flex items-center gap-2 text-lg font-bold text-gray-800 mb-4">
-                <div className="p-2 bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg">
-                  <Sparkles className="w-5 h-5 text-white" />
-                </div>
+            <div className="mb-8 p-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200">
+              <label className="text-sm font-semibold text-gray-700 mb-3 block">
                 Custom Instructions (Optional)
               </label>
               <textarea
-                className="w-full h-24 p-4 border-2 border-pink-200 rounded-2xl focus:ring-4 focus:ring-pink-500/20 focus:border-pink-500 transition-all duration-300 resize-none text-sm bg-white"
+                className="w-full h-24 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-sm bg-white"
                 placeholder="Tell the AI how to conduct the interview..."
                 value={customInstructions}
                 onChange={(e) => setCustomInstructions(e.target.value)}
               />
               
               <div className="mt-4">
-                <p className="text-xs font-semibold text-gray-600 mb-3">✨ Suggested prompts:</p>
+                <p className="text-xs font-medium text-gray-600 mb-2">Quick suggestions:</p>
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTED_PROMPTS.map((prompt, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCustomInstructions(prompt)}
-                      className="px-4 py-2 bg-white hover:bg-gradient-to-r hover:from-pink-500 hover:to-purple-500 text-gray-700 hover:text-white text-xs font-medium rounded-full transition-all duration-300 border border-pink-200 hover:border-transparent shadow-sm hover:shadow-lg transform hover:scale-105"
+                      className="px-3 py-1.5 bg-white hover:bg-indigo-100 text-gray-700 hover:text-indigo-700 text-xs font-medium rounded-lg transition-colors border border-gray-300 hover:border-indigo-300"
                     >
                       {prompt}
                     </button>
@@ -332,27 +351,17 @@ export default function InterviewPractice() {
             </div>
 
             {error && (
-              <div className="mb-6 p-5 bg-red-50 border-2 border-red-200 rounded-2xl text-red-700 font-medium animate-shake">
+              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg text-red-700 text-sm">
                 {error}
               </div>
             )}
 
             <button
               onClick={handleStartInterview}
-              disabled={isLoading || (!resumeFile && !resumeText) || !jobDescription}
-              className="w-full px-10 py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white text-lg font-bold rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-300 shadow-2xl hover:shadow-3xl transform hover:scale-105 disabled:transform-none flex items-center justify-center gap-3"
+              disabled={isLoading || (!resumeFile && !resumeText) || (!jobDescFile && !jobDescText)}
+              className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30"
             >
-              {isLoading ? (
-                <>
-                  <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                  Preparing Interview...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-6 h-6" />
-                  Start Interview Practice
-                </>
-              )}
+              {isLoading ? 'Starting Interview...' : 'Start Interview Practice'}
             </button>
           </div>
         </div>
@@ -361,54 +370,58 @@ export default function InterviewPractice() {
   }
 
   return (
-    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-slate-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 p-8 text-white relative overflow-hidden">
-            <div className="absolute inset-0 bg-white/10 backdrop-blur-sm" />
-            <div className="relative flex items-center justify-between">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-6 text-white">
+            <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-black mb-2 flex items-center gap-3">
-                  <MessageCircle className="w-8 h-8" />
-                  Interview in Progress
+                <h1 className="text-2xl font-bold mb-1 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                    <MessageCircle className="w-6 h-6" />
+                  </div>
+                  Interview Session
                 </h1>
-                <p className="text-white/90 text-sm font-medium">Answer questions and receive instant AI-powered feedback</p>
+                <p className="text-gray-300 text-sm flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                  {chatHistory.filter(m => m.role === 'user').length} questions answered
+                </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={handleExportChat}
-                  className="px-5 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 border border-white/30 shadow-lg hover:shadow-xl"
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Export
                 </button>
                 <button
                   onClick={handleResetSession}
-                  className="px-5 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl text-sm font-bold transition-all duration-300 flex items-center gap-2 border border-white/30 shadow-lg hover:shadow-xl"
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
-                  New Session
+                  End
                 </button>
               </div>
             </div>
           </div>
 
           {/* Chat Area */}
-          <div className="h-[650px] overflow-y-auto p-8 bg-gradient-to-br from-gray-50 to-white">
+          <div className="h-[600px] overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white">
             <div className="space-y-6">
               {chatHistory.map((message, idx) => (
-                <div key={idx} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-in`} style={{animationDelay: `${idx * 100}ms`}}>
-                  <div className={`max-w-3xl ${message.role === 'user' ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white' : 'bg-white border-2 border-purple-100'} rounded-3xl p-6 shadow-lg hover:shadow-xl transition-all duration-300`}>
-                    <div className={`text-xs ${message.role === 'user' ? 'text-blue-100' : 'text-purple-600'} mb-2 font-bold uppercase tracking-wide flex items-center gap-2`}>
+                <div key={idx} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-2xl ${message.role === 'user' ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/20' : 'bg-white border border-gray-200 shadow-md'} rounded-2xl p-5`}>
+                    <div className={`text-xs ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'} mb-2 font-semibold uppercase tracking-wide flex items-center gap-2`}>
                       {message.role === 'user' ? (
                         <>
-                          <div className="w-2 h-2 bg-white rounded-full" />
-                          You
+                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                          Your Answer
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-3 h-3" />
+                          <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
                           AI Interviewer
                         </>
                       )}
@@ -418,59 +431,50 @@ export default function InterviewPractice() {
                     </div>
                     
                     {message.feedback && (
-                      <div className="mt-6 pt-6 border-t border-gray-200 space-y-4">
+                      <div className="mt-5 pt-5 border-t border-gray-200 space-y-4">
                         <div className="flex items-center gap-3">
-                          <span className="font-bold text-gray-900">Score:</span>
+                          <span className="font-semibold text-gray-900">Score:</span>
                           <div className="flex items-center gap-2">
-                            <div className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-black text-lg rounded-full shadow-lg">
+                            <span className="px-4 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-full shadow-lg">
                               {message.feedback.score}/10
-                            </div>
-                            {message.feedback.score >= 8 && (
-                              <Award className="w-6 h-6 text-yellow-500 animate-bounce" />
-                            )}
+                            </span>
                           </div>
                         </div>
                         
-                        {message.feedback.strengths && message.feedback.strengths.length > 0 && (
-                          <div className="bg-green-50 rounded-2xl p-4 border border-green-200">
-                            <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2">
-                              ✓ Strengths
-                            </h4>
-                            <ul className="text-sm space-y-1">
-                              {message.feedback.strengths.map((s, i) => (
-                                <li key={i} className="text-green-700 flex items-start gap-2">
-                                  <span className="text-green-500 mt-1">•</span>
-                                  {s}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                          <h4 className="font-semibold text-green-900 text-sm mb-2 flex items-center gap-2">
+                            ✓ Strengths
+                          </h4>
+                          <ul className="text-xs space-y-1.5">
+                            {message.feedback.strengths.map((s, i) => (
+                              <li key={i} className="text-green-800 flex items-start gap-2">
+                                <span className="text-green-600 mt-0.5">•</span>
+                                <span>{s}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                         
-                        {message.feedback.improvements && message.feedback.improvements.length > 0 && (
-                          <div className="bg-orange-50 rounded-2xl p-4 border border-orange-200">
-                            <h4 className="font-bold text-orange-800 mb-2 flex items-center gap-2">
-                              ↑ Areas to Improve
-                            </h4>
-                            <ul className="text-sm space-y-1">
-                              {message.feedback.improvements.map((imp, i) => (
-                                <li key={i} className="text-orange-700 flex items-start gap-2">
-                                  <span className="text-orange-500 mt-1">•</span>
-                                  {imp}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                          <h4 className="font-semibold text-amber-900 text-sm mb-2 flex items-center gap-2">
+                            ↑ Areas to Improve
+                          </h4>
+                          <ul className="text-xs space-y-1.5">
+                            {message.feedback.improvements.map((imp, i) => (
+                              <li key={i} className="text-amber-800 flex items-start gap-2">
+                                <span className="text-amber-600 mt-0.5">•</span>
+                                <span>{imp}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                         
-                        {message.feedback.suggested_answer && (
-                          <div className="bg-blue-50 rounded-2xl p-4 border border-blue-200">
-                            <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
-                              💡 Suggested Answer
-                            </h4>
-                            <p className="text-sm text-blue-700 leading-relaxed">{message.feedback.suggested_answer}</p>
-                          </div>
-                        )}
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                          <h4 className="font-semibold text-blue-900 text-sm mb-2 flex items-center gap-2">
+                            💡 Suggested Answer
+                          </h4>
+                          <p className="text-xs text-blue-800 leading-relaxed">{message.feedback.suggested_answer}</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -481,8 +485,8 @@ export default function InterviewPractice() {
           </div>
 
           {/* Input Area */}
-          <div className="border-t-2 border-purple-100 p-6 bg-gradient-to-br from-white to-purple-50">
-            <div className="flex gap-4">
+          <div className="border-t-2 border-gray-100 p-5 bg-white">
+            <div className="flex gap-3">
               <textarea
                 value={currentAnswer}
                 onChange={(e) => setCurrentAnswer(e.target.value)}
@@ -491,32 +495,25 @@ export default function InterviewPractice() {
                     handleSendAnswer()
                   }
                 }}
-                placeholder="Type your answer here... (Ctrl+Enter to send)"
-                className="flex-1 p-5 border-2 border-purple-200 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 resize-none bg-white shadow-inner"
-                rows={4}
+                placeholder="Type your answer... (Ctrl+Enter to send)"
+                className="flex-1 p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
+                rows={3}
                 disabled={isLoading}
               />
               <button
                 onClick={handleSendAnswer}
                 disabled={isLoading || !currentAnswer.trim()}
-                className="px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl hover:from-purple-700 hover:to-pink-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-3 shadow-lg hover:shadow-xl font-bold transform hover:scale-105 disabled:transform-none"
+                className="px-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 flex items-center gap-2 font-semibold"
               >
-                <Send className="w-6 h-6" />
-                Send
+                <Send className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex items-center justify-between mt-3 px-2">
-              <p className="text-xs text-gray-500 font-medium">
-                Press <kbd className="px-2 py-1 bg-gray-100 rounded border border-gray-300 text-gray-700 font-mono">Ctrl</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded border border-gray-300 text-gray-700 font-mono">Enter</kbd> to send
-              </p>
-              <p className="text-xs text-purple-600 font-bold">
-                {chatHistory.filter(m => m.role === 'user').length} questions answered
-              </p>
-            </div>
+            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+              Press <kbd className="px-2 py-0.5 bg-gray-100 rounded border border-gray-300 font-mono">Ctrl</kbd> + <kbd className="px-2 py-0.5 bg-gray-100 rounded border border-gray-300 font-mono">Enter</kbd> to send
+            </p>
           </div>
         </div>
       </div>
     </div>
   )
 }
-
